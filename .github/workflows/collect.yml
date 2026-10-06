@@ -2,8 +2,8 @@ name: collect
 
 on:
   schedule:
-    - cron: "17 5 * * *"   # daily, 05:17 UTC (GitHub may start it a few minutes late)
-  workflow_dispatch:
+    - cron: "17 5 * * *"   # Runs daily at 05:17 UTC
+  workflow_dispatch:      # Allows you to trigger the job manually anytime
 
 concurrency:
   group: collect
@@ -13,18 +13,39 @@ jobs:
   collect:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    
     defaults:
       run:
         working-directory: backend
+        shell: bash
+
+    # Injects values dynamically from your Repository Secrets/Variables tabs
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       USER_AGENT: ${{ vars.USER_AGENT }}
+
     steps:
-      - uses: actions/checkout@v4.2.2 # Fixed version supporting Node 24
-      - uses: actions/setup-python@v5.3.0 # Fixed version supporting Node 24
+      - name: Checkout Repository Code
+        uses: actions/checkout@v4.2.2
+
+      - name: Set up Python Runtime
+        uses: actions/setup-python@v5.3.0
         with:
           python-version: "3.12"
           cache: pip
-      - run: pip install -r ../requirements.txt
-      - run: python -m app.migrate
-      - run: python -m app.collect
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install Application Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          else
+            pip install -r ../requirements.txt
+          fi
+
+      - name: Execute Database Migrations
+        run: python -m app.migrate
+
+      - name: Execute Daily Data Collection
+        run: python -m app.collect
